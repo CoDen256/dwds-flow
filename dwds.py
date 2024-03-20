@@ -114,7 +114,7 @@ class DWDSParser(BeautifulSoup):
         result = []
         for child in children:
             example = self.find_one(child, "belegtext")
-            result.append(example.text)
+            result.append(example.text.strip())
         return result
 
 
