@@ -1,17 +1,15 @@
 import dataclasses
-from typing import List
-from typing import TypeVar, Generic, get_args
+from typing import get_args
 
-import html_to_json
 import requests
-from bs4 import BeautifulSoup, PageElement, Tag
+from bs4 import BeautifulSoup, Tag
 
-text = requests.get("https://www.dwds.de/wb/h%C3%A4ufig").text
-bs = BeautifulSoup(text, "html.parser")
 
-node = bs.findAll(class_="dwdswb-definitionen")[0]
-print(node)
+def get_nodes(word, class_):
+    text = requests.get(f"https://www.dwds.de/wb/{word}").text
+    bs = BeautifulSoup(text, "html.parser")
 
+    return bs.findAll(class_=class_)
 
 class Extractor:
     def extract(self, node: Tag):
@@ -19,6 +17,7 @@ class Extractor:
 
 
 def deserialize_list(input, target_class):
+    if not isinstance(target_class(), list): raise Exception(str(target_class) + " is not a list")
     type = eval(get_args(target_class)[0])
     result = []
     for item in input:
@@ -27,9 +26,12 @@ def deserialize_list(input, target_class):
 
 
 def deserialize(input, target_class):
+    if input is None: return None
     if not isinstance(input, list) and isinstance(input, target_class): return input
 
     match input:
+        case None:
+            return None
         case str():
             return str(input)
         case Tag():
@@ -47,10 +49,10 @@ def deserialize_node(node: Tag, target_class):
     return target_class(**constructor)
 
 
-def deserialize_field(field: dataclasses.Field, result):
+def deserialize_field(field: dataclasses.Field, node):
     extractor: Extractor = get_extractor(field)
     target_class = field.type
-    result = extractor.extract(result)
+    result = extractor.extract(node)
 
     return deserialize(result, target_class)
 
@@ -100,30 +102,51 @@ class Self(Extractor):
 
 
 @dataclasses.dataclass
-class Timeline:
-    node: Tag = Self()
+class Diasystem:
+    # node: Tag = Self()
     text: str = Text()
-
 
 @dataclasses.dataclass
 class Definition:
-    node: Tag = Self()
-    gebrauchszeitraum: Timeline = NodeByClass("dwdswb-gebrauchszeitraum")
+    # node: Tag = Self()
+    text: str = Text()
+    pass
 
 
 @dataclasses.dataclass
 class Definitions:
-    node: Tag = Self()
-    definitions: list['Def'] = NodesByClass("dwdswb-definition")
+    # node: Tag = Self()
+    definitions: list['Definition'] = NodesByClass("dwdswb-definition")
 
 
 @dataclasses.dataclass
 class Def:
-    node: Tag = Self()
-    pass
+    # node: Tag = Self()
+    diasystem: Diasystem = NodeByClass("dwdswb-diasystematik")
+    definitions: Definitions = NodeByClass("dwdswb-definitionen")
 
-# print(Definition(""))
-# print([0].type)
 
-s = deserialize(node, Definitions)
-print(s)
+def test_def(word, n):
+    nodes = get_nodes(word, "dwdswb-lesart-def")
+    if n >= len(nodes):
+        print(str(n) + " is too much")
+        return
+    node = nodes[n]
+    print(word, deserialize(node, Def))
+
+if __name__ == '__main__':
+    words = [
+             "häufig",
+             "Liebe",
+             "hallo",
+             "vorkommen",
+             "auf",
+             "aus",
+            "mit",
+        "inmitten",
+        "Mitte",
+        "Voreingenommenheit"
+             ]
+    for i in range(1):
+        for word in words:
+            test_def(word, i)
