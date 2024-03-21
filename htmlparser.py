@@ -47,12 +47,12 @@ def deserialize_node(node: Tag, target_class):
     return target_class(**constructor)
 
 
-def deserialize_field(field: dataclasses.Field, node):
+def deserialize_field(field: dataclasses.Field, result):
     extractor: Extractor = get_extractor(field)
     target_class = field.type
-    node = extractor.extract(node)
+    result = extractor.extract(result)
 
-    return deserialize(node, target_class)
+    return deserialize(result, target_class)
 
 
 def get_extractor(field: dataclasses.Field):
