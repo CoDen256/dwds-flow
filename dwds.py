@@ -1,5 +1,6 @@
 import dataclasses
 import json
+import pprint
 import typing
 
 import requests
@@ -22,11 +23,23 @@ class Quotation:
         self.text = text
 
 
+# .dwdswb-lesart
 @dataclasses.dataclass
 class Term:
+    # id
+    id: str
+
     definition: str
     examples: typing.List[str]
     subterms: typing.List['Term']
+
+# .dwdswb-lesart-def
+@dataclasses.dataclass
+class Definition:
+    # .dwdswb-diasystematik
+    diasystem: str
+
+
 
 
 class DWDSConnector:
@@ -118,6 +131,9 @@ class DWDSParser(BeautifulSoup):
         return result
 
 
+    # def parse_all_terms(self):
+
+
 def parse_dwds_terms(query):
     page = DWDSConnector().fetch_page(query)
     return DWDSParser(page).parse_main_terms()
@@ -127,3 +143,7 @@ def parse_dwds_terms_reduced(query):
     page = DWDSConnector().fetch_page(query)
     dwds_parser = DWDSParser(page)
     return dwds_parser.parse_defined_terms_and_quotations()
+
+
+if __name__ == '__main__':
+    pprint.pprint(parse_dwds_terms("hallo"))
