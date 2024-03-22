@@ -29,6 +29,10 @@ class Extractor:
     def extract_single(self, node: Tag):
         pass
 
+    def then(self, next: 'Extractor'):
+        next.prev = self
+        return next
+
 def deserialize_list(input, target_class):
     if not isinstance(target_class(), list): raise Exception(str(target_class) + " is not a list")
     type = eval(get_args(target_class)[0])
@@ -83,26 +87,27 @@ class I(Extractor):
     def extract_single(self, node: Tag):
         return node
 
-
 class NodeByClass(Extractor):
-    def __init__(self, cls, prev: Extractor = None):
+    def __init__(self, cls, recursive=True, prev: Extractor = None):
         super().__init__(prev)
         self.cls = cls
+        self.recursive = recursive
 
     def extract_single(self, node: Tag):
-        return node.find(class_=self.cls)
+        return node.find(class_=self.cls, recursive=self.recursive)
 
 
 class NodesByClass(Extractor):
-    def __init__(self, cls, prev: Extractor = None):
+    def __init__(self, cls, recursive=True, prev: Extractor = None):
         super().__init__(prev)
         self.cls = cls
+        self.recursive = recursive
 
     def __repr__(self):
         return "class='" + self.cls + "'"
 
     def extract_single(self, node: Tag):
-        return list(node.findAll(class_=self.cls))
+        return list(node.findAll(class_=self.cls, recursive=self.recursive))
 
 
 class Attribute(Extractor):
@@ -124,48 +129,66 @@ class Text(Extractor):
 
 
 @dataclasses.dataclass
-class Diasystem:
-    level: str = Text(NodeByClass("dwdswb-bedeutungsebene"))
-    style: str = Text(NodeByClass("dwdswb-stilebene"))
-    timeline: str = Text(NodeByClass("dwdswb-gebrauchzeitraum"))
-
-
-@dataclasses.dataclass
 class Definition:
-    # node: Tag = I()
     text: str = Text()
     pass
 
-
 @dataclasses.dataclass
-class Definitions:
-    # node: Tag = I()
-    definitions: list['Definition'] = NodesByClass("dwdswb-definition")
+class Area:
+    text: str = Text()
 
 
 @dataclasses.dataclass
+class Diasystem:
+    level: str = Text(NodeByClass("dwdswb-bedeutungsebene"))
+    style: str = Text(NodeByClass("dwdswb-stilebene"))
+    timeline: str = Text(NodeByClass("dwdswb-gebrauchszeitraum"))
+    areas: list['Area'] = NodesByClass("dwdswb-fachgebiet")
+
+
+@dataclasses.dataclass
+# .dwdswb-lesart-def
 class Def:
-    # node: Tag = I()
     diasystem: Diasystem = NodeByClass("dwdswb-diasystematik")
-    definitions: Definitions = NodeByClass("dwdswb-definitionen")
-
+    definitions: list['Definition'] = NodesByClass("dwdswb-definition")
+    specification: str = Text(NodeByClass("dwdswb-definition-spezifizierung"))
+    sytagmatik: str = Text(NodeByClass("dwdswb-syntagmatik"))
 
 @dataclasses.dataclass
 class UsageExampleText:
     text: str = Text()
 
+@dataclasses.dataclass
+class Phrasem:
+    text: str = Text()
 
 @dataclasses.dataclass
+# .dwdswb-lesart
 class Term:
     id: str = Attribute("id")
-    definition: Def = NodeByClass("dwdswb-lesart-def")
-    usages: list['UsageExampleText'] = NodesByClass("dwdswb-belegtext")
 
+    phraseme: list['Phrasem'] = NodeByClass("dwdswb-lesart-content")\
+                                .then(NodeByClass("dwdswb-phraseme", recursive=False))\
+                                .then(NodesByClass("dwdswb-phrasem"))
+
+    definition: Def = NodeByClass("dwdswb-lesart-content")\
+                            .then(NodeByClass("dwdswb-lesart-def", recursive=False))
+
+    constraint: str = NodeByClass("dwdswb-lesart-content") \
+                            .then(NodeByClass("dwdswb-ft-la", recursive=False)) \
+                            .then(NodeByClass("dwdswb-einschraenkung")) \
+                            .then(Text())
+
+    usages: list['UsageExampleText'] = NodeByClass("dwdswb-lesart-content")\
+                                        .then(NodeByClass("dwdswb-verwendungsbeispiele", recursive=False))\
+                                        .then(NodesByClass("dwdswb-belegtext"))
+
+    terms: list['Term'] = NodeByClass("dwdswb-lesart-content")\
+                            .then(NodesByClass("dwdswb-lesart", False))
 
 @dataclasses.dataclass
 class Terms:
-    terms: list['Term'] = NodesByClass("dwdswb-lesart")
-
+    terms: list['Term'] = NodesByClass("dwdswb-lesart", recursive=False)
 
 def test(word, n, class_, target):
     nodes = get_nodes(word, class_)
@@ -188,7 +211,7 @@ def test_term(word, n):
 if __name__ == '__main__':
     words = [
         # "häufig",
-        # "Liebe",
+        "Liebe",
         # "hallo",
         # "vorkommen",
         # "auf",
@@ -196,7 +219,8 @@ if __name__ == '__main__':
         # "mit",
         # "inmitten",
         # "Mitte",
-        "geil"
+        # "geil"
+        # "voreingenommen"
     ]
     for word in words:
         for i in range(1):
