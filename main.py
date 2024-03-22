@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-import pprint
-import sys, os
+import dataclasses
+import os
+import sys
 import time
 
 parent_folder_path = os.path.abspath(os.path.dirname(__file__))
@@ -8,11 +9,16 @@ sys.path.append(parent_folder_path)
 sys.path.append(os.path.join(parent_folder_path, 'lib'))
 sys.path.append(os.path.join(parent_folder_path, 'plugin'))
 
+from dwds_model import Result
 from flowlauncher import FlowLauncher
-from dwds import parse_dwds_terms
+from dwds import parse_dwds_result
 import webbrowser
 
-
+@dataclasses.dataclass
+class QueryResult:
+    title: str
+    subtitle: str
+    link: str
 
 class DWDSSearcher(FlowLauncher):
 
@@ -24,15 +30,15 @@ class DWDSSearcher(FlowLauncher):
         if len(query) <= 4:
             time.sleep(1)
 
-        terms = parse_dwds_terms(query)
-        for (title, subtitle) in self.transform(terms):
+        result = parse_dwds_result(query)
+        for result in self.transform(query, result):
             yield {
-                "Title": title,
-                "SubTitle": subtitle,
+                "Title": result.title,
+                "SubTitle": result.subtitle,
                 "IcoPath": "Images/app.png",
                 "JsonRPCAction": {
                     "method": "open_url",
-                    "parameters": ["https://www.dwds.de/wb/"+query]
+                    "parameters": [result.link]
                 }
             }
 
@@ -52,14 +58,22 @@ class DWDSSearcher(FlowLauncher):
     def open_url(self, url):
         webbrowser.open(url)
 
-    def transform(self, terms):
-        for term in terms:
-            if not term.examples and not term.subterms:
-                yield term.definition, ""
-            for example in term.examples:
-                yield term.definition, example
-            for subterm in self.transform(term.subterms):
-                yield term.definition + "|" + subterm[0], subterm[1]
+    def link(self, word, id = None):
+        return "https://www.dwds.de/wb/"+word+"#"+("" if not id else id)
+
+    def transform(self, word, result: Result):
+        if result.lemma and result.lemma.text:
+            yield QueryResult(title=result.lemma.text, subtitle="", link=self.link(word))
+        if not result.terms or not result.terms.terms:
+            return
+
+        for term in result.terms.terms:
+            definitions = str(term.definition.definitions)
+            usages = term.usages
+            if not usages:
+                yield QueryResult(title=definitions, subtitle='', link=self.link(word, term.id))
+            for usage in usages:
+                yield QueryResult(title=definitions, subtitle=usage.text, link=self.link(word, term.id))
 
 
 if __name__ == "__main__":

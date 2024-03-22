@@ -126,15 +126,13 @@ class DWDSParser(BeautifulSoup):
             example = self.find_one(child, "belegtext")
             result.append(example.text.strip())
         return result
-    def parse_terms(self):
-        root = self.find(class_=DWDSParser.PREFIX + "lesarten")
-        if not root: return Terms()
-        return deserializer.deserialize(root, Terms)
+    def parse_terms(self) -> Result:
+        return deserializer.deserialize(self.find(), Result)
 
     # def parse_all_terms(self):
 
 
-def parse_dwds_terms(query):
+def parse_dwds_result(query) -> Result:
     page = DWDSConnector().fetch_page(query)
     return DWDSParser(page).parse_terms()
 
@@ -146,4 +144,4 @@ def parse_dwds_terms_reduced(query):
 
 
 if __name__ == '__main__':
-    pprint.pprint(parse_dwds_terms("tschüss"))
+    pprint.pprint(parse_dwds_result("tschüss"))

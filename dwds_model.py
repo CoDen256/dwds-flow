@@ -82,6 +82,10 @@ class Term:
 class Terms:
     terms: list['Term'] = NodesByClass("dwdswb-lesart", recursive=False)
 
+@dataclasses.dataclass
+class Result:
+    lemma: Lemma = NodeByClass("dwdswb-ft-lemmaansatz")
+    terms: Terms = NodeByClass("dwdswb-lesarten")
 
 def main():
     def get_nodes(word, class_):
