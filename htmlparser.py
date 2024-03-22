@@ -1,4 +1,5 @@
 import dataclasses
+import pprint
 from typing import get_args
 
 import requests
@@ -11,10 +12,18 @@ def get_nodes(word, class_):
 
     return bs.findAll(class_=class_)
 
-class Extractor:
-    def extract(self, node: Tag):
-        pass
 
+class Extractor:
+    def __init__(self, prev: 'Extractor' = None):
+        self.prev = prev
+
+    def extract(self, node: Tag):
+        if self.prev:
+            node = self.prev.extract(node)
+        return self.extract_single(node)
+
+    def extract_single(self, node: Tag):
+        pass
 
 def deserialize_list(input, target_class):
     if not isinstance(target_class(), list): raise Exception(str(target_class) + " is not a list")
@@ -39,7 +48,7 @@ def deserialize(input, target_class):
         case list():
             return deserialize_list(input, target_class)
         case _:
-            raise Exception("Cannot deserialize:"+str(target_class)+" from "+str(input))
+            raise Exception("Cannot deserialize:" + str(target_class) + " from " + str(input))
 
 
 def deserialize_node(node: Tag, target_class):
@@ -63,90 +72,128 @@ def get_extractor(field: dataclasses.Field):
     return extractor
 
 
+class I(Extractor):
+    def __init__(self, prev: Extractor = None):
+        super().__init__(prev)
+
+    def extract_single(self, node: Tag):
+        return node
+
+
 class NodeByClass(Extractor):
-    def __init__(self, class_):
-        self.class__ = class_
+    def __init__(self, cls, prev: Extractor = None):
+        super().__init__(prev)
+        self.cls = cls
 
-    def __repr__(self):
-        return "class='" + self.class__ + "'"
-
-    def extract(self, node: Tag):
-        return node.find(class_=self.class__)
+    def extract_single(self, node: Tag):
+        return node.find(class_=self.cls)
 
 
 class NodesByClass(Extractor):
-    def __init__(self, class_):
-        self.class__ = class_
+    def __init__(self, cls, prev: Extractor = None):
+        super().__init__(prev)
+        self.cls = cls
 
     def __repr__(self):
-        return "class='" + self.class__ + "'"
+        return "class='" + self.cls + "'"
 
-    def extract(self, node: Tag):
-        return list(node.findAll(class_=self.class__))
+    def extract_single(self, node: Tag):
+        return list(node.findAll(class_=self.cls))
+
+
+class Attribute(Extractor):
+    def __init__(self, attribute, prev: Extractor = None):
+        super().__init__(prev)
+        self.attribute = attribute
+
+    def extract_single(self, node: Tag):
+        if not node.has_attr(self.attribute): return None
+        return node.attrs[self.attribute]
 
 
 class Text(Extractor):
-    def __init__(self):
-        pass
+    def __init__(self, prev: Extractor = None):
+        super().__init__(prev)
 
-    def extract(self, node: Tag):
+    def extract_single(self, node: Tag):
         return node.text
-
-
-class Self(Extractor):
-    def __init__(self):
-        pass
-
-    def extract(self, node: Tag):
-        return node
 
 
 @dataclasses.dataclass
 class Diasystem:
-    # node: Tag = Self()
+    # node: Tag = I()
     text: str = Text()
+
 
 @dataclasses.dataclass
 class Definition:
-    # node: Tag = Self()
+    # node: Tag = I()
     text: str = Text()
     pass
 
 
 @dataclasses.dataclass
 class Definitions:
-    # node: Tag = Self()
+    # node: Tag = I()
     definitions: list['Definition'] = NodesByClass("dwdswb-definition")
 
 
 @dataclasses.dataclass
 class Def:
-    # node: Tag = Self()
+    # node: Tag = I()
     diasystem: Diasystem = NodeByClass("dwdswb-diasystematik")
     definitions: Definitions = NodeByClass("dwdswb-definitionen")
 
 
-def test_def(word, n):
-    nodes = get_nodes(word, "dwdswb-lesart-def")
+@dataclasses.dataclass
+class UsageExampleText:
+    text: str = Text()
+
+
+@dataclasses.dataclass
+class Term:
+    id: str = Attribute("id")
+    definition: Def = NodeByClass("dwdswb-lesart-def")
+    usages: list['UsageExampleText'] = NodesByClass("dwdswb-belegtext")
+
+
+@dataclasses.dataclass
+class Terms:
+    terms: list['Term'] = NodesByClass("dwdswb-lesart")
+
+
+def test(word, n, class_, target):
+    nodes = get_nodes(word, class_)
     if n >= len(nodes):
         print(str(n) + " is too much")
         return
     node = nodes[n]
-    print(word, deserialize(node, Def))
+    print(word)
+    pprint.pprint(deserialize(node, target))
+
+
+def test_def(word, n):
+    test(word, n, "dwdswb-lesart-def", Def)
+
+
+def test_term(word, n):
+    test(word, n, "dwdswb-lesarten", Terms)
+
 
 if __name__ == '__main__':
     words = [
-             "häufig",
-             "Liebe",
-             "hallo",
-             "vorkommen",
-             "auf",
-             "aus",
-            "mit",
-        "inmitten",
-        "Mitte",
-        "Voreingenommenheit"
-             ]
-    for i in range(1):
-        for word in words:
-            test_def(word, i)
+        # "häufig",
+        # "Liebe",
+        # "hallo",
+        # "vorkommen",
+        # "auf",
+        # "aus",
+        # "mit",
+        # "inmitten",
+        # "Mitte",
+        "geil"
+    ]
+    for word in words:
+        for i in range(1):
+            test_term(word, i)
+            # test_def(word, i)
