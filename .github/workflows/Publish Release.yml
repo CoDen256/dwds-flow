@@ -33,12 +33,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r ./requirements.txt -t ./lib
-          zip -r DWDS-Flow.zip . -x '*.git*'
+          zip -r DWDS-Flow-${{steps.version.outputs.prop}}.zip . -x '*.git*'
       - name: Publish
         if: success()
         uses: softprops/action-gh-release@v1
         with:
-          files: 'DWDS-Flow.zip'
-          tag_name: "v${{steps.version.outputs.prop}}"
+          files: 'DWDS-Flow-${{steps.version.outputs.prop}}.zip'
+          tag_name: "${{steps.version.outputs.prop}}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
