@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import dataclasses
 import os
+import pprint
+import re
 import sys
 import time
 
@@ -34,13 +36,17 @@ class DWDSSearcher(FlowLauncher):
         for result in self.transform(query, result):
             yield {
                 "Title": result.title,
-                "SubTitle": result.subtitle,
+                "SubTitle": self.clean_subtitle(result.subtitle),
                 "IcoPath": "Images/app.png",
                 "JsonRPCAction": {
                     "method": "open_url",
                     "parameters": [result.link]
                 }
             }
+
+    def clean_subtitle(self, title):
+        # remove all whitespaces length of 2 or more
+        return re.sub(' {2,}', ' ', title)
 
     def context_menu(self, data):
         return [
@@ -68,16 +74,27 @@ class DWDSSearcher(FlowLauncher):
             return
 
         for term in result.terms.terms:
-            definitions = str(term.definition.definitions)
+            definitions = str(term.definition)
             usages = term.usages
+
+
+            for subterm in term.terms:
+                subdefinitions = str(subterm.definition)
+                subusages = subterm.usages
+
+                if not subusages:
+                    yield QueryResult(title=subdefinitions, subtitle='', link=self.link(word, subterm.id))
+                    continue
+                for usage in subusages:
+                    yield QueryResult(title=subdefinitions, subtitle=usage.text, link=self.link(word, subterm.id))
             if not usages:
                 yield QueryResult(title=definitions, subtitle='', link=self.link(word, term.id))
+                continue
             for usage in usages:
                 yield QueryResult(title=definitions, subtitle=usage.text, link=self.link(word, term.id))
 
 
 if __name__ == "__main__":
     h = DWDSSearcher()
-    # terms = parse_dwds_terms("häufig")
+    # terms = parse_dwds_result("hallo")
     # pprint.pprint(terms)
-    # pprint.pprint(list(h.transform(terms)))
