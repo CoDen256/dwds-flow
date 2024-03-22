@@ -20,6 +20,10 @@ class Extractor:
     def extract(self, node: Tag):
         if self.prev:
             node = self.prev.extract(node)
+
+        if node is None:
+            return None
+
         return self.extract_single(node)
 
     def extract_single(self, node: Tag):
@@ -121,8 +125,9 @@ class Text(Extractor):
 
 @dataclasses.dataclass
 class Diasystem:
-    # node: Tag = I()
-    text: str = Text()
+    level: str = Text(NodeByClass("dwdswb-bedeutungsebene"))
+    style: str = Text(NodeByClass("dwdswb-stilebene"))
+    timeline: str = Text(NodeByClass("dwdswb-gebrauchzeitraum"))
 
 
 @dataclasses.dataclass
