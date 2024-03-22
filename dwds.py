@@ -1,10 +1,7 @@
-import dataclasses
 import json
-import pprint
 import typing
 
-import requests
-from bs4 import BeautifulSoup
+from dwds_model import *
 
 
 @dataclasses.dataclass(init=False)
@@ -129,14 +126,17 @@ class DWDSParser(BeautifulSoup):
             example = self.find_one(child, "belegtext")
             result.append(example.text.strip())
         return result
-
+    def parse_terms(self):
+        root = self.find(class_=DWDSParser.PREFIX + "lesarten")
+        if not root: return Terms()
+        return deserializer.deserialize(root, Terms)
 
     # def parse_all_terms(self):
 
 
 def parse_dwds_terms(query):
     page = DWDSConnector().fetch_page(query)
-    return DWDSParser(page).parse_main_terms()
+    return DWDSParser(page).parse_terms()
 
 
 def parse_dwds_terms_reduced(query):
@@ -146,4 +146,4 @@ def parse_dwds_terms_reduced(query):
 
 
 if __name__ == '__main__':
-    pprint.pprint(parse_dwds_terms("hallo"))
+    pprint.pprint(parse_dwds_terms("tschüss"))

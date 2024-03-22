@@ -13,6 +13,7 @@ from dwds import parse_dwds_terms
 import webbrowser
 
 
+
 class DWDSSearcher(FlowLauncher):
 
     def query(self, param):
