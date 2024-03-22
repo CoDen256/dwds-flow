@@ -1,3 +1,4 @@
-This is an example Python plugin project which demonstrates the interaction of request from Flow and then call back to the plugin.
+You can install this plugin via
 
-You can install this plugin via `pm install Hello World Python`
+    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+    Invoke-RestMethod -Uri https://github.com/CoDen256/dwds-flow/raw/master/install.ps1 | Invoke-Expression
