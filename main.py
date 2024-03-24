@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 import dataclasses
 import os
@@ -121,24 +122,27 @@ class DWDSSearcher(FlowLauncher):
         pass
 
     def map_to_results(self, terms: Terms) -> List['ResultTerm']:
+        if (not terms.terms): return []
         for term in terms.terms:
             yield self.map_to_result(term)
 
     def map_to_result(self, term: Term) -> 'ResultTerm':
         id = term.id
         examples = list(self.pretify_elements(term.usages))
-        definition = self.map_definition(term.definition, term.constraint, term.phraseme)
+        definition = self.map_definition(term.definition, term.constraint)
+        phrasems = [] if (not term.phraseme) else [it.text for it in term.phraseme]
         subterms = []
         if term.terms:
             for term in term.terms:
                 subterms.append(self.map_to_result(term))
-        return ResultTerm(id, definition=definition, examples=examples, subterms=subterms)
+        return ResultTerm(id, definition=definition, examples=examples, subterms=subterms, phrasems=phrasems,
+                          )
 
-    def map_definition(self, definition: Def, constraint: str, phrasems: list[Phrasem]) -> 'ResultDefinition':
-        definitions = [] if (not definition) else list(self.remove_separators(self.pretify_elements(definition.definitions), ";"))
-        phrasems = [] if (not phrasems) else [it.text for it in phrasems]
-        sytagmatic = None if (not definition) else definition.sytagmatic
+    def map_definition(self, definition: Def, constraint: str) -> 'ResultDefinition':
+        definitions = [] if (not definition) else list(
+            self.remove_separators(self.pretify_elements(definition.definitions), ";"))
         specification = None if (not definition) else definition.specification
+        sytagmatic = None if (not definition) else definition.sytagmatic
         diasystem = None if (not definition) else definition.diasystem
         areas = [] if (not diasystem or not diasystem.areas) else list(self.pretify_elements(diasystem.areas))
         timeline = None if (not diasystem or not diasystem.timeline) else diasystem.timeline
@@ -148,25 +152,24 @@ class DWDSSearcher(FlowLauncher):
         return ResultDefinition(
             definitions=definitions,
             constraint=constraint,
-            phrasems=phrasems,
             timeline=timeline,
-            sytagmatic=sytagmatic,
             specification=specification,
             areas=areas,
             level=level,
             style=style,
+            sytagmatic=sytagmatic
         )
 
     def remove_separators(self, elements, separator):
         for element in elements:
             if element.strip() != separator.strip():
                 yield element
+
     def pretify_elements(self, elements: list) -> list[str]:
         if not elements: return []
         for element in elements:
             if element.text:
                 yield self.pretify(element.text)
-
 
     def pretify(self, text: str) -> str:
         # remove all whitespaces length of 2 or more
@@ -179,9 +182,8 @@ class DWDSSearcher(FlowLauncher):
 class ResultDefinition:
     definitions: list[str]
     specification: str
-    constraint: str
-    phrasems: list[str]
-    sytagmatic: str
+    constraint: str  # in Verbindung mit 'in'
+    sytagmatic: str  # (brennende Liebe)
     level: str
     areas: list[str]
     timeline: str
@@ -192,6 +194,7 @@ class ResultDefinition:
 class ResultTerm:
     id: str
     definition: ResultDefinition
+    phrasems: list[str]  # (stehe auf etwas) = (gern haben)
     examples: list[str]
     subterms: list['ResultTerm']
 
@@ -199,5 +202,20 @@ class ResultTerm:
 if __name__ == "__main__":
     h = DWDSSearcher()
     # h.query("geil")
-    terms = parse_dwds_result("geil")
-    pprint.pprint(list(h.map_to_results(terms.terms)))
+    words = [
+        "häufig",
+        "Liebe",
+        "hallo",
+        "vorkommen",
+        "auf",
+        "aus",
+        "mit",
+        "inmitten",
+        "Mitte",
+        "geil",
+        "voreingenommen"
+        "drauf stehen"
+    ]
+    for word in words:
+        # pprint.pprint(parse_dwds_result(word))
+        pprint.pprint(list(h.map_to_results(parse_dwds_result(word).terms)))
