@@ -16,11 +16,13 @@ from flowlauncher import FlowLauncher
 from dwds import parse_dwds_result
 import webbrowser
 
+
 @dataclasses.dataclass
 class QueryResult:
     title: str
     subtitle: str
     link: str
+
 
 class DWDSSearcher(FlowLauncher):
 
@@ -30,13 +32,15 @@ class DWDSSearcher(FlowLauncher):
     def generate_results(self, query):
         if len(query) <= 1: return []
         if len(query) <= 4:
-            time.sleep(1)
-
+            time.sleep(0.3)
+        with open("log", "a") as f:
+            f.write("queried: "+query+"\n")
         result = parse_dwds_result(query)
         for result in self.transform(query, result):
             yield {
                 "Title": result.title,
-                "SubTitle": self.clean_subtitle(result.subtitle),
+                # max 60 x 2
+                "SubTitle": self.clean_subtitle(result.subtitle, 85),
                 "IcoPath": "Images/app.png",
                 "JsonRPCAction": {
                     "method": "open_url",
@@ -44,9 +48,22 @@ class DWDSSearcher(FlowLauncher):
                 }
             }
 
-    def clean_subtitle(self, title):
+    def clean_subtitle(self, title, break_index):
         # remove all whitespaces length of 2 or more
-        return re.sub(' {2,}', ' ', title)
+        removed_whitespaces = re.sub("\n", ' ', title)
+        removed_double_lines = re.sub(' {2,}', ' ', removed_whitespaces)
+        return self.soft_break_after(removed_double_lines, break_index).strip()
+
+    def soft_break_after(self, text, max):
+        result = ""
+        indented = False
+        for word in text.split(" "):
+            if not indented and len(result) + len(word) > max:
+                result += "\n" + word
+                indented = True
+            else:
+                result += " " + word
+        return result
 
     def context_menu(self, data):
         return [
@@ -64,8 +81,8 @@ class DWDSSearcher(FlowLauncher):
     def open_url(self, url):
         webbrowser.open(url)
 
-    def link(self, word, id = None):
-        return "https://www.dwds.de/wb/"+word+"#"+("" if not id else id)
+    def link(self, word, id=None):
+        return "https://www.dwds.de/wb/" + word + "#" + ("" if not id else id)
 
     def transform(self, word, result: Result):
         if result.lemma and result.lemma.text:
@@ -76,7 +93,6 @@ class DWDSSearcher(FlowLauncher):
         for term in result.terms.terms:
             definitions = str(term.definition)
             usages = term.usages
-
 
             for subterm in term.terms:
                 subdefinitions = str(subterm.definition)
@@ -96,5 +112,6 @@ class DWDSSearcher(FlowLauncher):
 
 if __name__ == "__main__":
     h = DWDSSearcher()
+    h.query("geil")
     # terms = parse_dwds_result("hallo")
     # pprint.pprint(terms)
