@@ -33,8 +33,6 @@ class DWDSSearcher(FlowLauncher):
         if len(query) <= 1: return []
         if len(query) <= 4:
             time.sleep(0.3)
-        with open("log", "a") as f:
-            f.write("queried: "+query+"\n")
         result = parse_dwds_result(query)
         for result in self.transform(query, result):
             yield {
