@@ -23,7 +23,7 @@ import webbrowser
 class QueryResult:
     title: str
     subtitle: str
-    link: str
+    id: str
 
 
 class DWDSSearcher(FlowLauncher):
@@ -38,7 +38,7 @@ class DWDSSearcher(FlowLauncher):
         with open("log", "a") as f:
             f.write("queried: " + query + "\n")
         result = parse_dwds_result(query)
-        for result in self.transform(query, result):
+        for result in self.transform(result):
             yield {
                 "Title": result.title,
                 # max 60 x 2
@@ -46,7 +46,7 @@ class DWDSSearcher(FlowLauncher):
                 "IcoPath": "Images/app.png",
                 "JsonRPCAction": {
                     "method": "open_url",
-                    "parameters": [result.link]
+                    "parameters": [self.link(query, result.id)]
                 }
             }
 
@@ -83,46 +83,67 @@ class DWDSSearcher(FlowLauncher):
     def link(self, word, id=None):
         return "https://www.dwds.de/wb/" + word + "#" + ("" if not id else id)
 
-    def transform(self, word, result: Result):
+    def transform(self, result: Result):
         if result.lemma and result.lemma.text:
-            yield QueryResult(title=result.lemma.text, subtitle="", link=self.link(word))
+            yield QueryResult(title=result.lemma.text, subtitle="", id=None)
 
-        if not result.terms or not result.terms.terms: return
+        result_terms = self.map_to_results(result.terms)
 
-        for term in result.terms.terms:
-            for result in self.generate_results(term):
+        for term in result_terms:
+            for result in self.generate_definition_and_examples(term):
                 yield result
 
-            # definitions = str(term.definition)
-            # usages = term.usages
-            #
-            # for subterm in term.terms:
-            #     subdefinitions = str(subterm.definition)
-            #     subusages = subterm.usages
-            #
-            #     if not subusages:
-            #         yield QueryResult(title=subdefinitions, subtitle='', link=self.link(word, subterm.id))
-            #         continue
-            #     for usage in subusages:
-            #         yield QueryResult(title=subdefinitions, subtitle=usage.text, link=self.link(word, subterm.id))
-            # if not usages:
-            #     yield QueryResult(title=definitions, subtitle='', link=self.link(word, term.id))
-            #     continue
-            # for usage in usages:
-            #     yield QueryResult(title=definitions, subtitle=usage.text, link=self.link(word, term.id))
+    def generate_definition_and_examples(self, term: 'ResultTerm', parent_term: 'ResultTerm'=None):
+        definition = self.generate_definition(term)
+        fallback = self.fallback_definition(term.definition, parent_term)
+        actual = definition if definition else fallback
+        examples = self.generate_examples(term, 1)
 
-    def generate_definition_and_examples(self, term: Term, parent_definition: Def):
-        definition = self.generate_definition(term.definition, parent_definition)
-        # examples = self.generate_examples(term.)
+        for example in examples:
+            yield QueryResult(title=actual, subtitle=example, id=term.id)
+        else:
+            if definition: yield QueryResult(title=definition, subtitle='', id=term.id)
 
-    def generate_definition(self, definition: Def, parent_defintion: Def):
-        if not definition: return
+        for current in term.subterms:
+            for sub_result in self.generate_definition_and_examples(current, term):
+                yield sub_result
 
-    def generate_examples(self, ):
-        pass
+    def generate_definition(self, term: 'ResultTerm') -> str:
+        # Redewedung, figuratively (= explanation)
+        if term.phrasems:
+            return term.phrasems[0]
+
+        definition = term.definition
+        if definition.definitions:
+            return "; ".join(definition.definitions)
+        if definition.specification:
+            return definition.specification
+
+        if definition.constraint:
+            return definition.constraint
+
+    def fallback_definition(self, definition: 'ResultDefinition', parent_definition):
+        extra = []
+        if definition.sytagmatic:
+            extra.append(definition.sytagmatic)
+        if definition.level:
+            extra.append(definition.level)
+        if definition.areas:
+            extra.append(", ".join(definition.areas))
+        if definition.timeline:
+            extra.append(definition.timeline)
+        if extra:
+            return "; ".join(extra)
+        if parent_definition:
+            return self.generate_definition(parent_definition)
+        return "<unknown definition>"
+
+    def generate_examples(self, term: 'ResultTerm', limit):
+        for i in range(min(limit, len(term.examples))):
+            yield term.examples[i]
 
     def map_to_results(self, terms: Terms) -> List['ResultTerm']:
-        if (not terms.terms): return []
+        if (not terms or not terms.terms): return []
         for term in terms.terms:
             yield self.map_to_result(term)
 
@@ -202,20 +223,21 @@ class ResultTerm:
 if __name__ == "__main__":
     h = DWDSSearcher()
     # h.query("geil")
-    words = [
-        "häufig",
-        "Liebe",
-        "hallo",
-        "vorkommen",
-        "auf",
-        "aus",
-        "mit",
-        "inmitten",
-        "Mitte",
-        "geil",
-        "voreingenommen"
-        "drauf stehen"
-    ]
-    for word in words:
-        # pprint.pprint(parse_dwds_result(word))
-        pprint.pprint(list(h.map_to_results(parse_dwds_result(word).terms)))
+    # words = [
+        # "häufig",
+        # "Liebe",
+        # "hallo",
+        # "vorkommen",
+        # "auf",
+        # "aus",
+        # "mit",
+        # "inmitten",
+        # "Mitte",
+        # "geil",
+        # "voreingenommen"
+        # "drauf stehen",
+        # ""
+    # ]
+    # for word in words:
+    #     pprint.pprint(parse_dwds_result(word))
+        # pprint.pprint(list(h.map_to_results(parse_dwds_result(word).terms)))
