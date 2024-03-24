@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 import dataclasses
 import os
@@ -38,7 +37,7 @@ class DWDSSearcher(FlowLauncher):
         with open("log", "a") as f:
             f.write("queried: " + query + "\n")
         result = parse_dwds_result(query)
-        for result in self.transform(result):
+        for result in self.transform(query, result):
             yield {
                 "Title": result.title,
                 # max 60 x 2
@@ -83,8 +82,9 @@ class DWDSSearcher(FlowLauncher):
     def link(self, word, id=None):
         return "https://www.dwds.de/wb/" + word + "#" + ("" if not id else id)
 
-    def transform(self, result: Result):
-        if result.lemma and result.lemma.text:
+    def transform(self, orig, result: Result):
+
+        if result.lemma and result.lemma.text:  # and orig.strip() != result.lemma.text:
             yield QueryResult(title=result.lemma.text, subtitle="", id=None)
 
         result_terms = self.map_to_results(result.terms)
@@ -93,27 +93,41 @@ class DWDSSearcher(FlowLauncher):
             for result in self.generate_definition_and_examples(term):
                 yield result
 
-    def generate_definition_and_examples(self, term: 'ResultTerm', parent_term: 'ResultTerm'=None):
-        definition = self.generate_definition(term)
+    def generate_definition_and_examples(self, term: 'ResultTerm', parent_term: 'ResultTerm' = None):
+        phrasem = self.generate_phrasem(term)
+        definition = self.generate_definition(term.definition)
         fallback = self.fallback_definition(term.definition, parent_term)
-        actual = definition if definition else fallback
-        examples = self.generate_examples(term, 1)
+        actual_definition = definition if definition else fallback
+
+        result = self.add_phrasem_if_exists(actual_definition, phrasem)
+
+        examples = list(self.generate_examples(term, 1))
 
         for example in examples:
-            yield QueryResult(title=actual, subtitle=example, id=term.id)
-        else:
-            if definition: yield QueryResult(title=definition, subtitle='', id=term.id)
+            yield QueryResult(title=result, subtitle=example, id=term.id)
+
+        if not examples and (definition or phrasem):
+            result = self.add_phrasem_if_exists(definition, phrasem)
+            yield QueryResult(title=result, subtitle='', id=term.id)
 
         for current in term.subterms:
             for sub_result in self.generate_definition_and_examples(current, term):
                 yield sub_result
 
-    def generate_definition(self, term: 'ResultTerm') -> str:
-        # Redewedung, figuratively (= explanation)
+    def add_phrasem_if_exists(self, actual_definition, phrasem):
+        if phrasem:
+            if '=' in phrasem:
+                return phrasem
+            else:
+                return phrasem + ' = ' + actual_definition
+        return actual_definition
+
+    def generate_phrasem(self, term: 'ResultTerm'):
         if term.phrasems:
             return term.phrasems[0]
 
-        definition = term.definition
+    def generate_definition(self, definition: 'ResultDefinition') -> str:
+        # Redewedung, figuratively (= explanation)
         if definition.definitions:
             return "; ".join(definition.definitions)
         if definition.specification:
@@ -122,7 +136,9 @@ class DWDSSearcher(FlowLauncher):
         if definition.constraint:
             return definition.constraint
 
-    def fallback_definition(self, definition: 'ResultDefinition', parent_definition):
+        return None
+
+    def fallback_definition(self, definition: 'ResultDefinition', parent_definition: 'ResultTerm'):
         extra = []
         if definition.sytagmatic:
             extra.append(definition.sytagmatic)
@@ -135,12 +151,13 @@ class DWDSSearcher(FlowLauncher):
         if extra:
             return "; ".join(extra)
         if parent_definition:
-            return self.generate_definition(parent_definition)
+            return self.generate_definition(parent_definition.definition)
         return "<unknown definition>"
 
     def generate_examples(self, term: 'ResultTerm', limit):
-        for i in range(min(limit, len(term.examples))):
-            yield term.examples[i]
+        ordered = sorted(term.examples, key=lambda x: len(x))
+        for i in range(min(limit, len(ordered))):
+            yield ordered[i]
 
     def map_to_results(self, terms: Terms) -> List['ResultTerm']:
         if (not terms or not terms.terms): return []
@@ -222,22 +239,24 @@ class ResultTerm:
 
 if __name__ == "__main__":
     h = DWDSSearcher()
-    # h.query("geil")
+    # pprint.pprint(list(h.map_to_results(parse_dwds_result("aufkommen").terms)))
+    # h.query("voreingenommen")
+    h.query("aufkommen")
     # words = [
-        # "häufig",
-        # "Liebe",
-        # "hallo",
-        # "vorkommen",
-        # "auf",
-        # "aus",
-        # "mit",
-        # "inmitten",
-        # "Mitte",
-        # "geil",
-        # "voreingenommen"
-        # "drauf stehen",
-        # ""
+    # "häufig",
+    # "Liebe",
+    # "hallo",
+    # "vorkommen",
+    # "auf",
+    # "aus",
+    # "mit",
+    # "inmitten",
+    # "Mitte",
+    # "geil",
+    # "voreingenommen"
+    # "drauf stehen",
+    # ""
     # ]
     # for word in words:
     #     pprint.pprint(parse_dwds_result(word))
-        # pprint.pprint(list(h.map_to_results(parse_dwds_result(word).terms)))
+    # pprint.pprint(list(h.map_to_results(parse_dwds_result("aufkommen").terms)))
