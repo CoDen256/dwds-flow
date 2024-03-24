@@ -11,7 +11,7 @@ sys.path.append(parent_folder_path)
 sys.path.append(os.path.join(parent_folder_path, 'lib'))
 sys.path.append(os.path.join(parent_folder_path, 'plugin'))
 
-from dwds_model import Result
+from dwds_model import Result, Term
 from flowlauncher import FlowLauncher
 from dwds import parse_dwds_result
 import webbrowser
@@ -33,6 +33,8 @@ class DWDSSearcher(FlowLauncher):
         if len(query) <= 1: return []
         if len(query) <= 4:
             time.sleep(0.3)
+        with open("log", "a") as f:
+            f.write("queried: "+query+"\n")
         result = parse_dwds_result(query)
         for result in self.transform(query, result):
             yield {
@@ -66,8 +68,8 @@ class DWDSSearcher(FlowLauncher):
     def context_menu(self, data):
         return [
             {
-                "Title": "Hello World Python's Context menu",
-                "SubTitle": "Press enter to open Flow the plugin's repo in GitHub",
+                "Title": data[0],
+                "SubTitle": "Press enter to open Flow the plugin's repo in GitHub\n"*10,
                 "IcoPath": "Images/app.png",
                 "JsonRPCAction": {
                     "method": "open_url",
@@ -85,31 +87,35 @@ class DWDSSearcher(FlowLauncher):
     def transform(self, word, result: Result):
         if result.lemma and result.lemma.text:
             yield QueryResult(title=result.lemma.text, subtitle="", link=self.link(word))
-        if not result.terms or not result.terms.terms:
-            return
+
+        if not result.terms: return
 
         for term in result.terms.terms:
-            definitions = str(term.definition)
-            usages = term.usages
+            for result in self.generate_results(term):
+                yield result
 
-            for subterm in term.terms:
-                subdefinitions = str(subterm.definition)
-                subusages = subterm.usages
-
-                if not subusages:
-                    yield QueryResult(title=subdefinitions, subtitle='', link=self.link(word, subterm.id))
-                    continue
-                for usage in subusages:
-                    yield QueryResult(title=subdefinitions, subtitle=usage.text, link=self.link(word, subterm.id))
-            if not usages:
-                yield QueryResult(title=definitions, subtitle='', link=self.link(word, term.id))
-                continue
-            for usage in usages:
-                yield QueryResult(title=definitions, subtitle=usage.text, link=self.link(word, term.id))
-
+            # definitions = str(term.definition)
+            # usages = term.usages
+            #
+            # for subterm in term.terms:
+            #     subdefinitions = str(subterm.definition)
+            #     subusages = subterm.usages
+            #
+            #     if not subusages:
+            #         yield QueryResult(title=subdefinitions, subtitle='', link=self.link(word, subterm.id))
+            #         continue
+            #     for usage in subusages:
+            #         yield QueryResult(title=subdefinitions, subtitle=usage.text, link=self.link(word, subterm.id))
+            # if not usages:
+            #     yield QueryResult(title=definitions, subtitle='', link=self.link(word, term.id))
+            #     continue
+            # for usage in usages:
+            #     yield QueryResult(title=definitions, subtitle=usage.text, link=self.link(word, term.id))
+    def generate_definitions(self, term: Term):
+        pass
 
 if __name__ == "__main__":
-    h = DWDSSearcher()
-    h.query("geil")
-    # terms = parse_dwds_result("hallo")
-    # pprint.pprint(terms)
+    # h = DWDSSearcher()
+    # h.query("geil")
+    terms = parse_dwds_result("geil")
+    pprint.pprint(terms)
