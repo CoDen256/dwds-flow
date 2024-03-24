@@ -38,8 +38,9 @@ class DWDSSearcher(FlowLauncher):
             f.write("queried: " + query + "\n")
         result = parse_dwds_result(query)
         for result in self.transform(query, result):
+            id = '' if not result.id or len(result.id) < 5 else result.id[4:5] + '. '
             yield {
-                "Title": result.title,
+                "Title": id + result.title,
                 # max 60 x 2
                 "SubTitle": self.clean_subtitle(result.subtitle, 85),
                 "IcoPath": "Images/app.png",
@@ -164,15 +165,19 @@ class DWDSSearcher(FlowLauncher):
         for term in terms.terms:
             yield self.map_to_result(term)
 
-    def map_to_result(self, term: Term) -> 'ResultTerm':
-        id = term.id
+    def get_id(self, term:Term):
+        return None if (not term or not term.id) else term.id
+    def map_to_result(self, term: Term, parent: Term = None) -> 'ResultTerm':
+        parent_id = self.get_id(parent)
+        child_id = self.get_id(term)
+        id = child_id if child_id else parent_id
         examples = list(self.pretify_elements(term.usages))
         definition = self.map_definition(term.definition, term.constraint)
         phrasems = [] if (not term.phraseme) else [it.text for it in term.phraseme]
         subterms = []
         if term.terms:
-            for term in term.terms:
-                subterms.append(self.map_to_result(term))
+            for cur in term.terms:
+                subterms.append(self.map_to_result(cur, term))
         return ResultTerm(id, definition=definition, examples=examples, subterms=subterms, phrasems=phrasems,
                           )
 
@@ -241,7 +246,7 @@ if __name__ == "__main__":
     h = DWDSSearcher()
     # pprint.pprint(list(h.map_to_results(parse_dwds_result("aufkommen").terms)))
     # h.query("voreingenommen")
-    h.query("aufkommen")
+    h.query("vorkommen")
     # words = [
     # "häufig",
     # "Liebe",
@@ -256,6 +261,7 @@ if __name__ == "__main__":
     # "voreingenommen"
     # "drauf stehen",
     # ""
+    # "zum Gluck" -> synonym zu instead of definition
     # ]
     # for word in words:
     #     pprint.pprint(parse_dwds_result(word))
