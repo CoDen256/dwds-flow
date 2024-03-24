@@ -40,7 +40,7 @@ class Def:
     diasystem: Diasystem = NodeByClass("dwdswb-diasystematik")
     definitions: list['Definition'] = NodesByClass("dwdswb-definition")
     specification: str = Text(NodeByClass("dwdswb-definition-spezifizierung"))
-    sytagmatik: str = Text(NodeByClass("dwdswb-syntagmatik"))
+    sytagmatic: str = Text(NodeByClass("dwdswb-syntagmatik"))
 
 
 @dataclasses.dataclass
